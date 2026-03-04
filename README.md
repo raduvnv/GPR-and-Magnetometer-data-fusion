@@ -1,86 +1,167 @@
-# GPR Hyperbola Detector
+# Landmine Detection — GPR + Magnetometer Sensor Fusion
 
-## Overview
-This project contains a Python script (`main.py`) designed to analyze Ground Penetrating Radar (GPR) data. It detects hyperbolic reflections, indicative of subsurface objects, within HDF5 data files. The tool is specialized for a "sideways" data orientation where depth is measured along the trace axis.
+Automated detection pipeline for subsurface objects (landmines/UXO) using Ground Penetrating Radar (GPR) and magnetometer data. Developed as part of the Helen Parkhurst Meesterproef project in collaboration with TNO and the Defensie Expertise Centrum MILENG.
 
-## Functionality
+---
 
-### 1. Data Loading & Preprocessing
-- **Input**: Reads HDF5 files containing electromagnetic field data (specifically `['rxs']['rx1']['Ey']`).
-- **Background Removal**: Subtracts the mean trace to remove static background noise.
-- **Gain**: Applies a depth-dependent gain curve to enhance deeper signals.
-- **Ground Detection**: Automatically estimates the ground surface position based on amplitude profiles to ignore shallow surface reflections.
+## What it does
 
-### 2. Candidate Extraction
-- **Thresholding**: Calculates a dynamic threshold based on image statistics (`sigma`) to identify regions of interest. 
-- **Segmentation**: Uses morphological dilation and connected component labeling to group pixels into candidate "blobs".
-- **Filtering**: Discards candidates that are too small or located above the estimated ground level.
+The system consists of three independent components that can be run separately or as a full end-to-end pipeline:
 
-### 3. Reflection Analysis
-- **Hyperbola Fitting**: Fits a hyperbolic curve to each candidate. The model assumes a "sideways" orientation (Trace vs. Sample), where the trace index represents depth.
-- **Validation**: Filters candidates based on:
-  - **Width**: Minimum trace width.
-  - **Depth**: Specific trace index ranges.
-  - **Amplitude**: Intensity thresholds.
-  - **Shape**: Goodness of fit (Mean Absolute Error) to the hyperbola model.
+| Component | Script | What it does |
+|---|---|---|
+| GPR detector | `main.py` | Detects hyperbolic reflections in GPR B-scans |
+| Magnetometer detector | `mag_upload_AS.py` | Locates ferromagnetic objects via Analytic Signal (THG) |
+| Sensor fusion | `sensor_fusion.py` + `integrated_workflow.py` | Combines both detections via AND-gate matching |
 
-### 4. Visualization
-The script generates a summary image (`gpr_sideways_ground_removed.png`) containing four panels:
-1.  **GPR Data**: Processed data with the ground cutoff line.
-2.  **Binary Mask**: The thresholded detection mask.
-3.  **Candidates**: All detected blobs below the ground line.
-4.  **Reflections**: Final validated reflections with fitted hyperbola curves and apex markers.
+---
 
-## Dependencies
-- `numpy`
-- `h5py`
-- `scipy`
-- `matplotlib`
+## Project structure
 
-See also `pyproject.toml`.
+```
+.
+├── main.py                  # GPR hyperbola detection algorithm
+├── mag_upload_AS.py         # Magnetometer detection (Analytic Signal)
+├── sensor_fusion.py         # Fusion logic: coordinate transform + AND-gate matching
+├── integrated_workflow.py   # End-to-end pipeline: GPR → MAG → Fusion
+├── helpers.py               # Hyperbola fitting, filter functions
+├── models.py                # Candidate dataclass
+├── test_setup.py            # Pre-flight check: verifies all files + imports
+├── requirements.txt         # Python dependencies
+├── pyproject.toml           # Project metadata
+└── gprdata/                 # Place your .out / .mat / .npz data files here
+```
 
-## Usage
+---
 
-### 1. Prepare your data
-Create a folder named `gprdata` in the root directory of the project (same level as `main.py`). Place your `.out` or `.h5` GPR data files in the `gprdata` folder.
+## Installation
 
-### 2. Choose processing mode
-Open `main.py` and select one of the following modes:
+```bash
+pip install -r requirements.txt
+```
 
-#### Single File Processing (default)
-- Set the desired file path in `SETTINGS["filename"]` (e.g., `gprdata/yourfile.out`).
-- Ensure `process_all = False` (default).
-- Run the script. Only the specified file will be processed.
+Dependencies: `numpy`, `scipy`, `matplotlib`, `h5py`
 
-#### Multiple File Processing
-- Set `process_all = True` in `main.py`.
-- The script will process all `.out` files in the `gprdata` folder, one by one.
-- `SETTINGS["filename"]` will be overwritten for each file.
+> For synthetic magnetometer data generation, SimPEG is also required:
+> ```bash
+> pip install SimPEG discretize
+> ```
+> This is optional — detection works without it if you supply your own `.npz` data.
 
-### 3. Adjust detection parameters
-Modify the `SETTINGS` dictionary in `main.py` as needed:
-- `sigma`: Controls detection sensitivity (lower = more candidates, higher = stricter).
-- `min_trace` / `max_trace`: Sets the depth range of interest (in trace indices).
-- `max_fit_error`: Determines how strictly candidates must resemble a hyperbola.
-- `ground_search_fraction`: Fraction of traces to search for ground reflection (default: 0.25).
-- `ground_margin`: Extra traces to ignore after ground detection (default: 5).
+---
 
-### 4. Run the script
+## Quick start
+
+### Check your setup first
+```bash
+python test_setup.py
+```
+This verifies all files are present and all imports work before you run anything.
+
+### Run GPR detection only
 ```bash
 python main.py
 ```
+Set your file path and parameters in the `SETTINGS` dict at the bottom of `main.py`.
 
-### 5. Results
-Check the console for detection logs and open the generated PNG file(s) to view results.
+### Run magnetometer detection only
+```bash
+python mag_upload_AS.py
+```
+Point `mijn_bestand` to your `.npz` magnetometer file. If no file is found, a synthetic test dataset is generated automatically (requires SimPEG).
 
-## Integrated workflow
-
-To run the bundled end-to-end example (GPR → Magnetometer → Fusion):
-
+### Run the full pipeline (GPR → Magnetometer → Fusion)
 ```bash
 python integrated_workflow.py
 ```
+Configure `GPR_FILE`, `MAG_FILE` and `FUSION_MAX_DISTANCE` at the bottom of the script.
 
-Notes:
-- The workflow will attempt to load a magnetometer test file at `gprdata/mag_testdata.npz`. If missing it will try to generate a synthetic file using the generator in `mag_upload_AS.py` (requires SimPEG for generation).
-- Tweak `FUSION_MAX_DISTANCE`, `TRACE_SPACING` and `SAMPLE_SPACING` in `integrated_workflow.py` to adjust matching behavior.
+---
+
+## GPR detection parameters
+
+Configured via the `SETTINGS` dict in `main.py`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `sigma` | `0.050` | Detection threshold multiplier — lower = more candidates, higher = stricter |
+| `min_trace` | `300` | Minimum depth (trace index) to search |
+| `max_trace` | `1800` | Maximum depth (trace index) to search |
+| `intensity_T1` | `None` | Amplitude threshold — `None` = auto (70th percentile of candidates) |
+| `min_trace_width` | `150` | Minimum blob width in traces (removes vertical clutter) |
+| `max_fit_error` | `150` | Maximum allowed hyperbola fit error (MAE) |
+| `ground_search_fraction` | `0.25` | Fraction of traces to scan for ground reflection |
+| `ground_margin` | `5` | Extra traces to skip after detected ground |
+
+### Output
+- Console log with per-candidate accept/reject reasoning
+- `visual_gpr_data.png` — 4-panel figure: raw data, binary mask, candidates, validated reflections with fitted hyperbolas
+
+---
+
+## Sensor fusion parameters
+
+Configured in `integrated_workflow.py`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `FUSION_MAX_DISTANCE` | `0.5` | Max distance (meters) between GPR and MAG detection to count as a match |
+| `TRACE_SPACING` | `0.1` | Physical distance per trace index (meters) |
+| `SAMPLE_SPACING` | `0.05` | Physical distance per sample index (meters) |
+
+### How it works
+1. GPR trace/sample indices are converted to world coordinates (meters) using `trace_spacing` and `sample_spacing`
+2. For each GPR detection, the nearest magnetometer detection is found (Euclidean distance)
+3. If the distance is within `max_distance`, it's a match (AND-gate)
+4. A fusion score is computed: `0.6 × distance_score + 0.4 × amplitude_score`
+5. The fused object location is the midpoint between the two detections
+
+### Output
+- `sensor_fusion_result.png` — map of GPR, MAG and fused detections + match quality chart
+- `fusion_results.csv` — table of verified objects with coordinates and scores
+
+---
+
+## Data format
+
+| Sensor | Expected format | Notes |
+|---|---|---|
+| GPR | `.out` (gprMax HDF5) or `.mat` | Field `['rxs']['rx1']['Ey']` |
+| Magnetometer | `.npz` | Keys: `rx_locs` (Nx3 array), `dpred` (N array of TMI values in nT) |
+
+Place all data files in the `gprdata/` folder.
+
+---
+
+## Known limitation: coordinate registration
+
+The AND-gate fusion requires both sensors to have scanned **the same physical area**. When running on the included example data (Chelton GPR field scan + SimPEG synthetic magnetometer data), no matches are found because the two datasets cover different spatial areas. This is expected behaviour — the fusion logic is correct, but end-to-end validation requires co-registered field measurements from both sensors simultaneously.
+
+---
+
+## Pipeline overview
+
+```
+GPR .out file                    MAG .npz file
+      │                                │
+      ▼                                ▼
+Background subtraction          Grid interpolation
+Gain correction                 Gradient computation
+Ground cutoff detection         Analytic Signal (THG)
+Blob extraction                 Peak detection
+Hyperbola fitting               │
+Amplitude filter                │
+      │                         │
+      ▼                         ▼
+  GPR detections           MAG detections
+  (world coords)           (world coords)
+      │                         │
+      └──────────┬──────────────┘
+                 ▼
+         AND-gate matching
+         Fusion score
+                 │
+                 ▼
+        fusion_results.csv
+        sensor_fusion_result.png
+```
