@@ -1,4 +1,4 @@
-# Landmine Detection — GPR + Magnetometer Sensor Fusion
+# Landmine Detection, GPR + Magnetometer Sensor Fusion
 
 Automated detection pipeline for subsurface objects (landmines/UXO) using Ground Penetrating Radar (GPR) and magnetometer data. Developed as part of the Helen Parkhurst Meesterproef project in collaboration with TNO and the Defensie Expertise Centrum MILENG.
 
@@ -46,7 +46,7 @@ Dependencies: `numpy`, `scipy`, `matplotlib`, `h5py`
 > ```bash
 > pip install SimPEG discretize
 > ```
-> This is optional — detection works without it if you supply your own `.npz` data.
+> This is optional , detection works without it if you supply your own `.npz` data.
 
 ---
 
@@ -84,10 +84,10 @@ Configured via the `SETTINGS` dict in `main.py`:
 
 | Parameter | Default | Description |
 |---|---|---|
-| `sigma` | `0.050` | Detection threshold multiplier — lower = more candidates, higher = stricter |
+| `sigma` | `0.050` | Detection threshold multiplier , lower = more candidates, higher = stricter |
 | `min_trace` | `300` | Minimum depth (trace index) to search |
 | `max_trace` | `1800` | Maximum depth (trace index) to search |
-| `intensity_T1` | `None` | Amplitude threshold — `None` = auto (70th percentile of candidates) |
+| `intensity_T1` | `None` | Amplitude threshold , `None` = auto (70th percentile of candidates) |
 | `min_trace_width` | `150` | Minimum blob width in traces (removes vertical clutter) |
 | `max_fit_error` | `150` | Maximum allowed hyperbola fit error (MAE) |
 | `ground_search_fraction` | `0.25` | Fraction of traces to scan for ground reflection |
@@ -95,7 +95,7 @@ Configured via the `SETTINGS` dict in `main.py`:
 
 ### Output
 - Console log with per-candidate accept/reject reasoning
-- `visual_gpr_data.png` — 4-panel figure: raw data, binary mask, candidates, validated reflections with fitted hyperbolas
+- `visual_gpr_data.png` , 4-panel figure: raw data, binary mask, candidates, validated reflections with fitted hyperbolas
 
 ---
 
@@ -117,8 +117,8 @@ Configured in `integrated_workflow.py`:
 5. The fused object location is the midpoint between the two detections
 
 ### Output
-- `sensor_fusion_result.png` — map of GPR, MAG and fused detections + match quality chart
-- `fusion_results.csv` — table of verified objects with coordinates and scores
+- `sensor_fusion_result.png` , map of GPR, MAG and fused detections + match quality chart
+- `fusion_results.csv` , table of verified objects with coordinates and scores
 
 ---
 
@@ -135,7 +135,7 @@ Place all data files in the `gprdata/` folder.
 
 ## Known limitation: coordinate registration
 
-The AND-gate fusion requires both sensors to have scanned **the same physical area**. When running on the included example data (Chelton GPR field scan + SimPEG synthetic magnetometer data), no matches are found because the two datasets cover different spatial areas. This is expected behaviour — the fusion logic is correct, but end-to-end validation requires co-registered field measurements from both sensors simultaneously.
+The AND-gate fusion requires both sensors to have scanned **the same physical area**. When running on the included example data (Chelton GPR field scan + SimPEG synthetic magnetometer data), no matches are found because the two datasets cover different spatial areas. This is expected behaviour , the fusion logic is correct, but end-to-end validation requires co-registered field measurements from both sensors simultaneously.
 
 ---
 
